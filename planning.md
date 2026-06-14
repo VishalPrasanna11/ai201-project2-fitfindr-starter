@@ -132,18 +132,28 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 ## A Complete Interaction (Step by Step)
 
-Write out what a full user interaction looks like from start to finish — tool call by tool call. Use a specific example query.
+FitFindr is a thrift-shopping assistant that takes a user's search request and personal style, finds matching secondhand listings, then builds a complete outfit around the new find using the user's existing wardrobe. `search_listings` is triggered first by any user query describing an item to buy; if it returns results, `suggest_outfit` is called with the top listing and the user's wardrobe to generate styling advice; `create_fit_card` is called last to produce a shareable social caption. If `search_listings` returns nothing, FitFindr tells the user to adjust their criteria and stops — it never calls the downstream tools with empty inputs.
+
+---
 
 **Example user query:** "I'm looking for a vintage graphic tee under $30. I mostly wear baggy jeans and chunky sneakers. What's out there and how would I style it?"
 
 **Step 1:**
-<!-- What does the agent do first? Which tool is called? With what input? -->
+Agent calls `search_listings("vintage graphic tee", max_price=30.0)`. The tool scans all listings, matching on title, description, and style_tags. Three results come back sorted by relevance:
+1. lst_006 — "Graphic Tee — 2003 Tour Bootleg Style", $24, size L, tags: `["graphic tee", "vintage", "grunge", "streetwear", "band tee"]`
+2. lst_033 — "Vintage Band Tee — Faded Grey", $19, size L, tags: `["vintage", "grunge", "band tee", "graphic tee", "streetwear"]`
+3. lst_002 — "Y2K Baby Tee — Butterfly Print", $18, size S/M, tags: `["y2k", "vintage", "graphic tee"]`
+
+The agent picks the top result: lst_006.
 
 **Step 2:**
-<!-- What happens next? What was returned from step 1? What tool is called now? -->
+Agent calls `suggest_outfit(new_item=lst_006, wardrobe=get_example_wardrobe())`. The example wardrobe contains baggy dark-wash jeans (w_001) and chunky white sneakers (w_007) — matching the user's described style. The tool returns: "Wear the boxy bootleg tee untucked over your baggy dark-wash jeans — the oversized fit plays well with the wide leg. Finish with your chunky white sneakers and black crossbody to keep it clean. Roll the sleeves once to break the silhouette."
 
 **Step 3:**
-<!-- Continue until the full interaction is complete -->
+Agent calls `create_fit_card(outfit=<suggestion above>, new_item=lst_006)`. Returns: "thrifted this faded bootleg tee off depop for $24 and it was made for my baggy jeans 🖤 chunky sneakers doing all the heavy lifting, whole fit under $30"
+
+**Error path:**
+If `search_listings` returns zero results, the agent responds: "No vintage graphic tees under $30 right now — try searching 'band tee' or 'graphic top', or bump your budget a few dollars. Dropping the size filter can also open up more results." No further tools are called.
 
 **Final output to user:**
-<!-- What does the user actually see at the end? -->
+The user sees: the top matching listing (title, price, platform, condition), the outfit suggestion describing exactly how to style it with their existing pieces, and the ready-to-post fit card caption.
