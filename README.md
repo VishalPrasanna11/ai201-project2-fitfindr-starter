@@ -21,7 +21,7 @@ Get a free key at [console.groq.com](https://console.groq.com).
 ## Running the App
 
 ```bash
-python app.py
+PYTHONPATH=. python app.py
 ```
 
 Open the URL shown in your terminal (usually `http://localhost:7860`).
@@ -29,8 +29,16 @@ Open the URL shown in your terminal (usually `http://localhost:7860`).
 ## Running Tests
 
 ```bash
-pytest tests/
+PYTHONPATH=. pytest tests/ -v
 ```
+
+## Running the Agent (CLI)
+
+```bash
+PYTHONPATH=. python agent.py
+```
+
+Runs a happy-path query and a no-results query, printing session state so you can verify data flows between tools.
 
 ---
 
@@ -179,6 +187,14 @@ create_fit_card("", results[0])
 
 ---
 
+## Spec Reflection
+
+**How the spec helped:** Writing `planning.md` before coding forced me to define exact function signatures, return types, and failure modes for each tool before touching `tools.py`. The planning loop section and architecture diagram made the conditional branches explicit — especially the early exit when `search_listings` returns `[]` — so implementing `run_agent()` was mostly mapping numbered steps to code rather than figuring out behavior on the fly.
+
+**Where implementation diverged:** Two places. First, `planning.md` describes using the Claude API, but I used Groq (`llama-3.3-70b-versatile`) with the same free-tier key from Project 1 — same pattern (prompt + chat completion), different provider. Second, the spec says `search_listings` should match keywords across listing fields including category, but the implementation only scores `title`, `description`, and `style_tags`. A query like `"shoes under $30"` returns no results even though `lst_035` exists in the shoes category, because the word "shoes" never appears in those text fields. The agent also does not early-exit when `suggest_outfit` returns an empty string — that case is handled inside `create_fit_card`, which returns an error message instead of calling the LLM.
+
+---
+
 ## AI Usage
 
 ### search_listings implementation
@@ -192,6 +208,10 @@ The generated code scored by checking if any keyword appeared anywhere in the co
 I gave Claude the Tool 2 spec block and the wardrobe schema from `data/wardrobe_schema.json`. I asked it to implement `suggest_outfit()` with two prompt branches (populated wardrobe vs. empty wardrobe).
 
 The generated prompt was generic — "suggest an outfit using these clothes." I rewrote it to explicitly instruct the LLM to reference wardrobe items by their `name` field, include at least one specific styling tip (tucking, rolling sleeves, layering), and limit the response to 2–4 sentences. I also adjusted temperature: 0.7 for outfit suggestions (consistent, actionable advice) and 1.1 for `create_fit_card` (caption variety).
+
+### Planning loop (`run_agent`)
+
+I gave Claude the Architecture diagram, Planning Loop, and State Management sections from `planning.md` and asked it to implement `run_agent()` in `agent.py`. The generated code matched the session dict structure and early-exit on empty search results, but I kept the regex-based `_parse_query()` instead of an LLM call for parsing — faster and deterministic for size/price patterns like `"under $30"` and `"size M"`. I also verified manually that `session["selected_item"]` is the same dict object passed into both `suggest_outfit` and `create_fit_card`, not re-fetched or hardcoded.
 
 ---
 
